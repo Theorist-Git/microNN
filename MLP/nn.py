@@ -53,7 +53,7 @@ class Layer:
 
 class MLP:
 
-    def __init__(self, n_inputs: int, layers: List[Tuple[int, str]]):
+    def __init__(self, n_inputs: int, layers: List[Tuple[int, str]], epochs: int, learning_rate = 0.01):
         arch = [n_inputs]
         activations = []
 
@@ -62,6 +62,8 @@ class MLP:
             activations.append(activation)
 
         self.layers = [Layer(arch[i], arch[i + 1], activation=activations[i]) for i in range(len(layers))]
+        self.epochs = epochs
+        self.lr     = learning_rate
 
     def __call__(self, x):
         for layer in self.layers:
@@ -80,3 +82,25 @@ class MLP:
             params.extend(layer.parameters())
 
         return params
+
+    def fit(self, x: np.array, y: np.array, loss_fn: str):
+        loss_map = {
+            "MSE": lambda y_true, y_hat: (y_true - y_hat) ** 2,
+        }
+
+        for k in range(self.epochs):
+
+            # forward propagation
+            y_pred = [self(x) for x in x]
+            # noinspection PyTypeChecker
+            cost: Value = sum([loss_map[loss_fn](y_true, y_hat) for y_true, y_hat in zip(y, y_pred)]) / len(y)
+
+            # backpropagation
+            self.zero_grad()
+            cost.backward()
+
+            # update
+            for p in self.parameters():
+                p.data -= self.lr * p.grad
+
+            print(f"EPOCH {k}: {loss_fn} = {cost.data}")

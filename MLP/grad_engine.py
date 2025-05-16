@@ -16,7 +16,12 @@ class Value:
         return f"Value(data={self.data})"
 
     def __add__(self, other):
-
+        """
+        -> Value  + 2(int/float)
+        -> Value1 + Value2
+        Checks if **other**, the right hand operator (a + b) is a
+        Value type object or not. If not, it is converted
+        """
         if not isinstance(other, Value):
             other = Value(other)
 
@@ -31,7 +36,12 @@ class Value:
         return out
 
     def __mul__(self, other: "Value"):
-
+        """
+        -> Value  * 2(int/float)
+        -> Value1 * Value2
+        Checks if **other**, the right hand operator (a + b) is a
+        Value type object or not. If not, it is converted
+        """
         if not isinstance(other, Value):
             other = Value(other)
 
@@ -57,10 +67,22 @@ class Value:
 
         return out
 
-    def __radd__(self, other):  # 2 + Value(2)
+    def __radd__(self, other):  #
+        """
+        -> 2(int/float) + Value
+        First, 2.__add__(Value) will fail and python will try
+        Value.__radd__(2), we overload __radd__ and make it
+        equivalent to Value.__add__(2)
+        """
         return self + other
 
     def __rmul__(self, other):  # other * self
+        """
+        -> 2(int/float) * Value
+        First, 2.__mul__(Value) will fail and python will try
+        Value.__rmul__(2), we overload __rmul__ and make it
+        equivalent to Value.__mul__(2)
+        """
         return self * other
 
     def __truediv__(self, other):
@@ -71,6 +93,9 @@ class Value:
 
     def __sub__(self, other):
         return self + (-other)
+
+    def __rsub__(self, other):
+        return Value(other) - self
 
     def tanh(self):
         x = self.data
