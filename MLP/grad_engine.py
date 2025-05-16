@@ -1,5 +1,5 @@
 from graphviz import Digraph
-from math import exp
+from math import exp, log
 
 
 class Value:
@@ -146,6 +146,18 @@ class Value:
 
         def _backward():
             self.grad += out.data * out.grad
+
+        out._backward = _backward
+
+        return out
+
+    def ln(self):
+        x = self.data
+
+        out = Value(log(x), (self, ), _op="ln")
+
+        def _backward():
+            self.grad += (1 / x) * out.grad
 
         out._backward = _backward
 

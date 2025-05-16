@@ -84,8 +84,12 @@ class MLP:
         return params
 
     def fit(self, x: np.array, y: np.array, loss_fn: str):
+        eps = 1e-7
+
         loss_map = {
-            "MSE": lambda y_true, y_hat: (y_true - y_hat) ** 2,
+            "mse": lambda y_true, y_hat: (y_true - y_hat) ** 2,
+            "binary_cross_entropy": lambda y_true, y_hat: -(y_true * (y_hat + eps).ln()) - \
+                                                          ((1 - y_true) * (1 - y_hat + eps).ln())
         }
 
         for k in range(self.epochs):
