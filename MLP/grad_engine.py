@@ -1,5 +1,6 @@
 from graphviz import Digraph
 from math import exp, log
+from sys import exit
 
 
 class Value:
@@ -154,7 +155,11 @@ class Value:
     def ln(self):
         x = self.data
 
-        out = Value(log(x), (self, ), _op="ln")
+        try:
+            out = Value(log(x), (self, ), _op="ln")
+        except ValueError as e:
+            print(f"Exception `{e}` occurred during the calculation ln({x})")
+            exit(1)
 
         def _backward():
             self.grad += (1 / x) * out.grad

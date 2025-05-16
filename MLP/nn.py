@@ -19,10 +19,11 @@ class Neuron:
         self.activation = activation_map[activation]
 
     def __call__(self, x):
-        if not isinstance(x, np.ndarray):
-            x = np.array(x)
+        weighted_sum = self.b
+        for xi, wi in zip(x, self.w):
+            weighted_sum += wi * xi  # Uses Value.__mul__ and __add__
 
-        return self.activation(x @ self.w + self.b)
+        return self.activation(weighted_sum)
 
     def parameters(self):
         return self.w + [self.b]
