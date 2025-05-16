@@ -158,7 +158,7 @@ class Value:
         try:
             out = Value(log(x), (self, ), _op="ln")
         except ValueError as e:
-            print(f"Exception `{e}` occurred during the calculation ln({x})")
+            print(f"Exception: `{e}` occurred during the calculation ln({x})")
             exit(1)
 
         def _backward():
