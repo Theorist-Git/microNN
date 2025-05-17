@@ -6,7 +6,9 @@ from MLP.grad_engine import Value
 class Neuron:
 
     def __init__(self, n_inputs: int, activation: str = "linear"):
-        self.w = [Value(np.random.rand() * 2 - 1) for _ in range(n_inputs)]
+        arr_w: np.ndarray = np.random.rand(n_inputs) * 2 - 1
+
+        self.w = [Value(weight) for weight in arr_w]
         self.b = Value(np.random.rand() * 2 - 1)
 
         activation_map: dict[str, Callable[[Value], Value]] = {
