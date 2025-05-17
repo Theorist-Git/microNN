@@ -106,7 +106,7 @@ class MLP:
             cost: Value = sum([loss_map[loss_fn](y_true, y_hat) for y_true, y_hat in zip(y, y_pred)]) / len(y)
 
             if patience is not None:
-                if abs(cost.data - prev_cost) < 1e-3:
+                if abs(cost.data - prev_cost) < 1e-4:
                     no_improvement_cnt += 1
                 else:
                     no_improvement_cnt = 0

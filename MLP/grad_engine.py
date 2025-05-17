@@ -171,15 +171,21 @@ class Value:
     def backward(self):
         topo = []
         visited = set()
+        stack = [(self, False)]
 
-        def build_topo(v):
-            if v not in visited:
-                visited.add(v)
-                for child in v._prev:
-                    build_topo(child)
-                topo.append(v)
+        while stack:
+            node, is_expanded = stack.pop()
 
-        build_topo(self)
+            if node in visited:
+                continue
+            if is_expanded:
+                visited.add(node)
+                topo.append(node)
+            else:
+                stack.append((node, True))
+                for child in node._prev:
+                    if child not in visited:
+                        stack.append((child, False))
 
         self.grad = 1.0  # start backprop from output node
         for node in reversed(topo):
