@@ -19,6 +19,8 @@ class Neuron:
         self.activation = activation_map[activation]
 
     def __call__(self, x):
+        assert len(x) == len(self.w), f"Expected {len(self.w)} inputs but got {len(x)}"
+
         weighted_sum = self.b
         for xi, wi in zip(x, self.w):
             weighted_sum += wi * xi  # Uses Value.__mul__ and __add__
@@ -84,8 +86,8 @@ class MLP:
 
         return params
 
-    def fit(self, x: np.array, y: np.array, loss_fn: str):
-        eps = 1e-7
+    def fit(self, x: np.array, y: np.array, loss_fn: str, patience: int = None):
+        eps = 1e-8
 
         loss_map = {
             "mse": lambda y_true, y_hat: (y_true - y_hat) ** 2,
@@ -93,12 +95,27 @@ class MLP:
                                                           ((1 - y_true) * (1 - y_hat + eps).ln())
         }
 
+        no_improvement_cnt = 0
+        prev_cost          = 0
+
         for k in range(self.epochs):
 
             # forward propagation
             y_pred = [self(x) for x in x]
             # noinspection PyTypeChecker
             cost: Value = sum([loss_map[loss_fn](y_true, y_hat) for y_true, y_hat in zip(y, y_pred)]) / len(y)
+
+            if patience is not None:
+                if abs(cost.data - prev_cost) < 1e-3:
+                    no_improvement_cnt += 1
+                else:
+                    no_improvement_cnt = 0
+
+                if no_improvement_cnt >= patience:
+                    print(f"Early Stopping: EPOCH {k}: {loss_fn} = {cost.data}")
+                    break
+
+                prev_cost = cost.data
 
             # backpropagation
             self.zero_grad()
