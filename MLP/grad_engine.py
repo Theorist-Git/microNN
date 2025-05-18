@@ -1,13 +1,18 @@
 from graphviz import Digraph
 from math import exp, log
 from sys import exit
-
+import numpy as np
 
 class Value:
 
-    def __init__(self, data, _children=(), _op="", label=""):
+    def __init__(self, data: np.ndarray, _children=(), _op="", label=""):
+
+        if not isinstance(data, np.ndarray):
+            data = np.array(data, dtype=float)
+
         self.data = data
-        self.grad = 0.0
+        self.grad = np.zeros_like(data, dtype=float)
+
         self._backward = lambda: None
         self._prev = _children  # check for set
         self._op = _op
@@ -29,8 +34,47 @@ class Value:
         out = Value(self.data + other.data, (self, other), "+")
 
         def _backward():
-            self.grad += 1.0 * out.grad
-            other.grad += 1.0 * out.grad
+
+            if self.data.shape != out.grad.shape:
+                # summing up leading axes
+                extra_axes = tuple(range(out.grad.ndim - self.data.ndim))
+                self_grad = out.grad.sum(axis=extra_axes, keepdims=True)
+
+                # axes that were broadcast because their original size was 1
+                # collapse any axis where self.data was 1 but grad is >1
+                broadcast_axes = []
+
+                for axis_idx, (orig_dim, grad_dim) in enumerate(zip(self.data.shape, self_grad.shape)):
+                    if orig_dim == 1 and grad_dim > 1:
+                        broadcast_axes.append(axis_idx)
+
+                if broadcast_axes:
+                    self_grad = self_grad.sum(axis=tuple(broadcast_axes), keepdims=True)
+
+                self.grad += self_grad
+            else:
+                self.grad += out.grad
+
+            if other.data.shape != out.grad.shape:
+                # summing up leading axes
+                extra_axes = tuple(range(out.grad.ndim - other.data.ndim))
+                other_grad = out.grad.sum(axis=extra_axes, keepdims=True)
+
+                # axes that were broadcast because their original size was 1
+                # collapse any axis where self.data was 1 but grad is >1
+                broadcast_axes = []
+
+                for axis_idx, (orig_dim, grad_dim) in enumerate(zip(other.data.shape, other_grad.shape)):
+                    if orig_dim == 1 and grad_dim > 1:
+                        broadcast_axes.append(axis_idx)
+
+                if broadcast_axes:
+                    other_grad = other_grad.sum(axis=tuple(broadcast_axes), keepdims=True)
+
+                other.grad += other_grad
+
+            else:
+                other.grad += out.grad
 
         out._backward = _backward
 
@@ -187,7 +231,7 @@ class Value:
                     if child not in visited:
                         stack.append((child, False))
 
-        self.grad = 1.0  # start backprop from output node
+        self.grad = np.ones_like(self.data)  # start backprop from output node
         for node in reversed(topo):
             node._backward()
 
@@ -232,7 +276,7 @@ class Value:
         for n in nodes:
             uid = str(id(n))
 
-            dot.node(name=uid, label=f"{{ {n.label} | data{n.data:.4f} | grad {n.grad:.4f}}}", shape="record")
+            dot.node(name=uid, label=f"{{ {n.label} | data{n.data} | grad {n.grad}}}", shape="record")
 
             if n._op != "":
                 dot.node(name=uid + n._op, label=n._op)
