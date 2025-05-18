@@ -21,6 +21,24 @@ class Value:
     def __repr__(self):
         return f"Value(data={self.data})"
 
+    def __reverse_numpy_broadcast(self, gradient: np.ndarray):
+        # summing up leading axes
+        extra_axes = tuple(range(gradient.ndim - self.data.ndim))
+        gradient = gradient.sum(axis=extra_axes)
+
+        # axes that were broadcast because their original size was 1
+        # collapse any axis where self.data was 1 but grad is >1
+        broadcast_axes = []
+
+        for axis_idx, (orig_dim, grad_dim) in enumerate(zip(self.data.shape, gradient.shape)):
+            if orig_dim == 1 and grad_dim > 1:
+                broadcast_axes.append(axis_idx)
+
+        if broadcast_axes:
+            gradient = gradient.sum(axis=tuple(broadcast_axes), keepdims=True)
+
+        return gradient
+
     def __add__(self, other):
         """
         -> Value  + 2(int/float)
@@ -34,53 +52,23 @@ class Value:
         out = Value(self.data + other.data, (self, other), "+")
 
         def _backward():
+            gradient = out.grad
 
             if self.data.shape != out.grad.shape:
-                # summing up leading axes
-                extra_axes = tuple(range(out.grad.ndim - self.data.ndim))
-                self_grad = out.grad.sum(axis=extra_axes, keepdims=True)
-
-                # axes that were broadcast because their original size was 1
-                # collapse any axis where self.data was 1 but grad is >1
-                broadcast_axes = []
-
-                for axis_idx, (orig_dim, grad_dim) in enumerate(zip(self.data.shape, self_grad.shape)):
-                    if orig_dim == 1 and grad_dim > 1:
-                        broadcast_axes.append(axis_idx)
-
-                if broadcast_axes:
-                    self_grad = self_grad.sum(axis=tuple(broadcast_axes), keepdims=True)
-
-                self.grad += self_grad
+                self.grad += self.__reverse_numpy_broadcast(gradient=gradient)
             else:
-                self.grad += out.grad
+                self.grad += gradient
 
             if other.data.shape != out.grad.shape:
-                # summing up leading axes
-                extra_axes = tuple(range(out.grad.ndim - other.data.ndim))
-                other_grad = out.grad.sum(axis=extra_axes, keepdims=True)
-
-                # axes that were broadcast because their original size was 1
-                # collapse any axis where self.data was 1 but grad is >1
-                broadcast_axes = []
-
-                for axis_idx, (orig_dim, grad_dim) in enumerate(zip(other.data.shape, other_grad.shape)):
-                    if orig_dim == 1 and grad_dim > 1:
-                        broadcast_axes.append(axis_idx)
-
-                if broadcast_axes:
-                    other_grad = other_grad.sum(axis=tuple(broadcast_axes), keepdims=True)
-
-                other.grad += other_grad
-
+                other.grad += other.__reverse_numpy_broadcast(gradient=gradient)
             else:
-                other.grad += out.grad
+                other.grad += gradient
 
         out._backward = _backward
 
         return out
 
-    def __mul__(self, other: "Value"):
+    def __mul__(self, other):
         """
         -> Value  * 2(int/float)
         -> Value1 * Value2
@@ -93,8 +81,19 @@ class Value:
         out = Value(self.data * other.data, (self, other), "*")
 
         def _backward():
-            self.grad += other.data * out.grad
-            other.grad += self.data * out.grad
+            gradient = other.data * out.grad
+
+            if self.data.shape != out.grad.shape:
+                self.grad += self.__reverse_numpy_broadcast(gradient=gradient)
+            else:
+                self.grad += gradient
+
+            gradient = self.data * out.grad
+
+            if other.data.shape != out.grad.shape:
+                other.grad += other.__reverse_numpy_broadcast(gradient=gradient)
+            else:
+                other.grad += gradient
 
         out._backward = _backward
 
