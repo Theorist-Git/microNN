@@ -5,7 +5,7 @@ import numpy as np
 
 class Value:
 
-    def __init__(self, data: np.ndarray, _children=(), _op="", label=""):
+    def __init__(self, data, _children=(), _op="", label=""):
 
         if not isinstance(data, np.ndarray):
             data = np.array(data, dtype=float)
@@ -68,6 +68,15 @@ class Value:
 
         return out
 
+    def __radd__(self, other):  #
+        """
+        -> 2(int/float) + Value
+        First, 2.__add__(Value) will fail and python will try
+        Value.__radd__(2), we overload __radd__ and make it
+        equivalent to Value.__add__(2)
+        """
+        return self + other
+
     def __mul__(self, other):
         """
         -> Value  * 2(int/float)
@@ -99,6 +108,15 @@ class Value:
 
         return out
 
+    def __rmul__(self, other):  # other * self
+        """
+        -> 2(int/float) * Value
+        First, 2.__mul__(Value) will fail and python will try
+        Value.__rmul__(2), we overload __rmul__ and make it
+        equivalent to Value.__mul__(2)
+        """
+        return self * other
+
     def __pow__(self, other): # self ** other
         assert isinstance(other, (int, float)), "Only int/float powers are supported"
 
@@ -110,24 +128,6 @@ class Value:
         out._backward = _backward
 
         return out
-
-    def __radd__(self, other):  #
-        """
-        -> 2(int/float) + Value
-        First, 2.__add__(Value) will fail and python will try
-        Value.__radd__(2), we overload __radd__ and make it
-        equivalent to Value.__add__(2)
-        """
-        return self + other
-
-    def __rmul__(self, other):  # other * self
-        """
-        -> 2(int/float) * Value
-        First, 2.__mul__(Value) will fail and python will try
-        Value.__rmul__(2), we overload __rmul__ and make it
-        equivalent to Value.__mul__(2)
-        """
-        return self * other
 
     def __truediv__(self, other):
         return self * (other ** -1)
@@ -143,7 +143,7 @@ class Value:
 
     def tanh(self):
         x = self.data
-        t = (exp(2 * x) - 1) / (exp(2 * x) + 1)
+        t = (np.exp(2 * x) - 1) / (np.exp(2 * x) + 1)
 
         out = Value(t, (self,), _op="tanh")
 
@@ -156,7 +156,7 @@ class Value:
 
     def sigmoid(self):
         x = self.data
-        z = 1 / (1 + exp(-x))
+        z = 1 / (1 + np.exp(-x))
 
         out = Value(z, (self, ), _op="sigmoid")
 
@@ -169,15 +169,13 @@ class Value:
 
     def relu(self):
         x = self.data
-        r = max(0, x)
+        r = np.maximum(x, 0)
 
         out = Value(r, (self, ), _op="ReLU")
 
         def _backward():
-            if x <= 0:
-                self.grad += 0
-            else:
-                self.grad += 1 * out.grad
+            grad_mask = (x > 0).astype(float)
+            self.grad += grad_mask * out.grad
 
         out._backward = _backward
 
@@ -186,7 +184,7 @@ class Value:
     def exp_(self):
         x = self.data
 
-        out = Value(exp(x), (self,), _op="exp")
+        out = Value(np.exp(x), (self,), _op="exp")
 
         def _backward():
             self.grad += out.data * out.grad
@@ -199,7 +197,7 @@ class Value:
         x = self.data
 
         try:
-            out = Value(log(x), (self, ), _op="ln")
+            out = Value(np.log(x), (self, ), _op="ln")
         except ValueError as e:
             print(f"Exception: `{e}` occurred during the calculation ln({x})")
             exit(1)
