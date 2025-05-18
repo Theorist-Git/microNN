@@ -117,6 +117,30 @@ class Value:
         """
         return self * other
 
+    def __matmul__(self, other):
+        if not isinstance(other, Value):
+            other = Value(other)
+
+        mat_a, mat_b = self, other
+
+        out = Value(mat_a.data @ mat_b.data, (mat_a, mat_b), "matmul")
+
+        def _backward():
+            grad_a = out.grad @ mat_b.data.T
+            grad_b = mat_a.data.T @ out.grad
+
+            if grad_a.shape != mat_a.data.shape:
+                grad_a = mat_a.__reverse_numpy_broadcast(grad_a)
+            if grad_b.shape != mat_b.data.shape:
+                grad_b = mat_b.__reverse_numpy_broadcast(grad_b)
+
+            mat_a.grad += grad_a
+            mat_b.grad += grad_b
+
+        out._backward = _backward
+
+        return out
+
     def __pow__(self, other): # self ** other
         assert isinstance(other, (int, float)), "Only int/float powers are supported"
 
