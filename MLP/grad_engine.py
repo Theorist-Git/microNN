@@ -1,5 +1,4 @@
 from graphviz import Digraph
-from math import exp, log
 from sys import exit
 import numpy as np
 
@@ -9,6 +8,9 @@ class Value:
 
         if not isinstance(data, np.ndarray):
             data = np.array(data, dtype=float)
+
+        if data.ndim == 0:
+            data = data.reshape(1, 1)
 
         self.data = data
         self.grad = np.zeros_like(data, dtype=float)
@@ -76,6 +78,16 @@ class Value:
         equivalent to Value.__add__(2)
         """
         return self + other
+
+    def collapse_to_scalar(self):
+
+        out = Value(self.data.sum(), (self, ), _op="collapse_to_scalar")
+
+        def _backward():
+            self.grad += np.ones_like(self.data) * out.grad
+
+        out._backward = _backward
+        return out
 
     def __mul__(self, other):
         """
@@ -167,7 +179,7 @@ class Value:
 
     def tanh(self):
         x = self.data
-        t = (np.exp(2 * x) - 1) / (np.exp(2 * x) + 1)
+        t = np.tanh(x)
 
         out = Value(t, (self,), _op="tanh")
 
@@ -251,6 +263,10 @@ class Value:
                 for child in node._prev:
                     if child not in visited:
                         stack.append((child, False))
+
+        for node in topo:
+            # if node.data is an array, keep dtype/shape
+            node.grad = np.zeros_like(node.data, dtype=float)
 
         self.grad = np.ones_like(self.data)  # start backprop from output node
         for node in reversed(topo):

@@ -3,55 +3,26 @@ from typing import Callable, List, Tuple
 from MLP.grad_engine import Value
 
 
-class Neuron:
+class Layer:
 
-    def __init__(self, n_inputs: int, activation: str = "linear"):
-        arr_w: np.ndarray = np.random.rand(n_inputs) * 2 - 1
-
-        self.w = [Value(weight) for weight in arr_w]
-        self.b = Value(np.random.rand() * 2 - 1)
+    def __init__(self, n_inputs: int, n_neurons: int, activation: str = "linear"):
+        self.w = Value(np.random.randn(n_inputs, n_neurons) * 2 - 1)
+        self.b = Value(np.random.randn(1, n_neurons) * 2 - 1)
 
         activation_map: dict[str, Callable[[Value], Value]] = {
-            "tanh"   : lambda x: x.tanh(),
-            "relu"   : lambda x: x.relu(),
+            "tanh": lambda x: x.tanh(),
+            "relu": lambda x: x.relu(),
             "sigmoid": lambda x: x.sigmoid(),
-            "linear" : lambda x: x,
+            "linear": lambda x: x,
         }
 
         self.activation = activation_map[activation]
 
-    def __call__(self, x):
-        assert len(x) == len(self.w), f"Expected {len(self.w)} inputs but got {len(x)}"
-
-        weighted_sum = self.b
-        for xi, wi in zip(x, self.w):
-            weighted_sum += wi * xi  # Uses Value.__mul__ and __add__
-
-        return self.activation(weighted_sum)
+    def __call__(self, x: Value):
+        return self.activation(x @ self.w + self.b)
 
     def parameters(self):
-        return self.w + [self.b]
-
-
-class Layer:
-
-    def __init__(self, n_inputs: int, n_neurons: int, activation: str = "linear"):
-        self.neurons = [Neuron(n_inputs, activation) for _ in range(n_neurons)]
-        self.activation = activation
-
-    def __call__(self, x):
-        outs = [_neuron(x) for _neuron in self.neurons]
-
-        if len(outs) == 1:
-            return outs[0]
-
-        return outs
-
-    def parameters(self):
-        params = []
-
-        for neuron in self.neurons:
-            params.extend(neuron.parameters())
+        params = [self.w, self.b]
 
         return params
 
@@ -70,15 +41,18 @@ class MLP:
         self.epochs = epochs
         self.lr     = learning_rate
 
-    def __call__(self, x):
-        for layer in self.layers:
-            x = layer(x)
+    def __call__(self, x: np.ndarray) -> Value:
 
-        return x
+        out = Value(x)
+
+        for layer in self.layers:
+            out = layer(out)
+
+        return out
 
     def zero_grad(self):
         for param in self.parameters():
-            param.grad = 0.0
+            param.grad = np.zeros_like(param.data)
 
     def parameters(self):
         params = []
@@ -97,34 +71,21 @@ class MLP:
                                                           ((1 - y_true) * (1 - y_hat + eps).ln())
         }
 
-        no_improvement_cnt = 0
-        prev_cost          = 0
+        y_true = Value(y.reshape(-1,1))
 
         for k in range(self.epochs):
 
             # forward propagation
-            y_pred = [self(x) for x in x]
+            y_pred = self(x)
             # noinspection PyTypeChecker
-            cost: Value = sum([loss_map[loss_fn](y_true, y_hat) for y_true, y_hat in zip(y, y_pred)]) / len(y)
-
-            if patience is not None:
-                if abs(cost.data - prev_cost) < 1e-4:
-                    no_improvement_cnt += 1
-                else:
-                    no_improvement_cnt = 0
-
-                if no_improvement_cnt >= patience:
-                    print(f"Early Stopping: EPOCH {k}: {loss_fn} = {cost.data}")
-                    break
-
-                prev_cost = cost.data
+            cost: Value = loss_map[loss_fn](y_true, y_pred).collapse_to_scalar() / len(y)
 
             # backpropagation
-            self.zero_grad()
+            self.zero_grad()    
             cost.backward()
 
             # update
             for p in self.parameters():
                 p.data -= self.lr * p.grad
 
-            print(f"EPOCH {k}: {loss_fn} = {cost.data}")
+            print(f"EPOCH {k}: {loss_fn} = {cost.data.item()}")
