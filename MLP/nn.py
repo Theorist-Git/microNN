@@ -6,8 +6,20 @@ from MLP.grad_engine import Value
 class Layer:
 
     def __init__(self, n_inputs: int, n_neurons: int, activation: str = "linear"):
-        self.w = Value(np.random.randn(n_inputs, n_neurons) * 2 - 1)
-        self.b = Value(np.random.randn(1, n_neurons) * 2 - 1)
+        if activation == "tanh":
+            std = np.sqrt(1.0 / n_inputs)
+            W = np.random.randn(n_inputs, n_neurons) * std
+            self.w = Value(W)
+            self.b = Value(np.zeros((1, n_neurons)))
+        elif activation == "relu":
+            std = np.sqrt(2.0 / n_inputs)
+            W = np.random.randn(n_inputs, n_neurons) * std
+            self.w = Value(W)
+            self.b = Value(np.zeros((1, n_neurons)))
+        else:
+            W = np.random.randn(n_inputs, n_neurons) * 0.01
+            self.w = Value(W)
+            self.b = Value(np.zeros((1, n_neurons)))
 
         activation_map: dict[str, Callable[[Value], Value]] = {
             "tanh": lambda x: x.tanh(),
