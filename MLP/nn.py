@@ -74,7 +74,7 @@ class MLP:
 
         return params
 
-    def fit(self, x: np.array, y: np.array, loss_fn: str, patience: int = None):
+    def fit(self, x: np.array, y: np.array, loss_fn: str, batch_size: int, patience: int = None):
         eps = 1e-8
 
         loss_map = {
@@ -83,21 +83,26 @@ class MLP:
                                                           ((1 - y_true) * (1 - y_hat + eps).ln())
         }
 
-        y_true = Value(y.reshape(-1,1))
+        n_samples = x.shape[0]
 
         for k in range(self.epochs):
+            indices = np.random.permutation(n_samples)
 
-            # forward propagation
-            y_pred = self(x)
-            # noinspection PyTypeChecker
-            cost: Value = loss_map[loss_fn](y_true, y_pred).collapse_to_scalar() / len(y)
+            for i in range(0, n_samples, batch_size):
+                batch_idx = indices[i:i + batch_size]
+                xi = x[batch_idx]
+                # forward propagation
+                y_pred = self(xi)
+                y_true = Value(y[batch_idx].reshape(-1,1))
+                # noinspection PyTypeChecker
+                cost: Value = loss_map[loss_fn](y_true, y_pred).collapse_to_scalar() / len(batch_idx)
 
-            # backpropagation
-            self.zero_grad()    
-            cost.backward()
+                # backpropagation
+                self.zero_grad()
+                cost.backward()
 
-            # update
-            for p in self.parameters():
-                p.data -= self.lr * p.grad
+                # update
+                for p in self.parameters():
+                    p.data -= self.lr * p.grad
 
-            print(f"EPOCH {k}: {loss_fn} = {cost.data.item()}")
+                print(f"EPOCH {k}: Batch {i}(size={len(batch_idx)}): {loss_fn} = {cost.data.item()}")
