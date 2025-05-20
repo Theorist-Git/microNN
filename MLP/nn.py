@@ -25,6 +25,7 @@ class Layer:
             "tanh": lambda x: x.tanh(),
             "relu": lambda x: x.relu(),
             "sigmoid": lambda x: x.sigmoid(),
+            "softmax": lambda x: x.softmax(),
             "linear": lambda x: x,
         }
 
@@ -62,6 +63,46 @@ class MLP:
 
         return out
 
+    @staticmethod
+    def __mse(y_true: Value, y_pred: Value, batch_size: int) -> Value:
+        if batch_size == 0:
+            raise ValueError("Batch size cannot be 0")
+
+        _vector_loss = (y_true - y_pred) ** 2
+
+        return _vector_loss.collapse_to_scalar() / batch_size
+
+    @staticmethod
+    def __bce(y_true: Value, y_pred: Value, batch_size: int) -> Value:
+        if batch_size == 0:
+            raise ValueError("Batch size cannot be 0")
+
+        eps = 1e-8
+
+        _vector_loss: Value =  -(y_true * (y_pred + eps).ln()) - ((1 - y_true) * (1 - y_pred + eps).ln())
+
+        return _vector_loss.collapse_to_scalar() / batch_size
+
+    @staticmethod
+    def __cce(y_true: Value, y_pred: Value, batch_size: int) -> Value:
+        if batch_size == 0:
+            raise ValueError("Batch size cannot be 0")
+
+        eps = 1e-8
+
+        # y_pred are the softmax probabilities
+        # [ [p1, p2, p3, ....] ]
+        # y_true [ [1, 0, 2, ...] ]
+        y_true_1d: np.ndarray = y_true.data.ravel()
+        assert y_true_1d.shape[0] == batch_size
+
+        probability_pairs: Value = y_pred[np.arange(len(y_true_1d)), y_true_1d.astype(int)]
+                           # Value([0.6, 0.6, 0.5])
+
+        _vector_loss     : Value = -(probability_pairs + eps).ln()
+
+        return _vector_loss.collapse_to_scalar() / batch_size
+
     def zero_grad(self):
         for param in self.parameters():
             param.grad = np.zeros_like(param.data)
@@ -74,13 +115,13 @@ class MLP:
 
         return params
 
-    def fit(self, x: np.array, y: np.array, loss_fn: str, batch_size: int, patience: int = None):
+    def fit(self, x: np.array, y: np.array, loss_fn: str, batch_size: int, verbose: bool = True, patience: int = None):
         eps = 1e-8
 
         loss_map = {
-            "mse": lambda y_true, y_hat: (y_true - y_hat) ** 2,
-            "binary_cross_entropy": lambda y_true, y_hat: -(y_true * (y_hat + eps).ln()) - \
-                                                          ((1 - y_true) * (1 - y_hat + eps).ln())
+            "mse": self.__mse,
+            "binary_cross_entropy": self.__bce,
+            "categorical_cross_entropy": self.__cce,
         }
 
         n_samples = x.shape[0]
@@ -91,11 +132,14 @@ class MLP:
             for i in range(0, n_samples, batch_size):
                 batch_idx = indices[i:i + batch_size]
                 xi = x[batch_idx]
+
                 # forward propagation
-                y_pred = self(xi)
-                y_true = Value(y[batch_idx].reshape(-1,1))
+                y_pred: Value = self(xi)
+                y_true        = Value(y[batch_idx].reshape(-1,1))
+
+                # cost calculation
                 # noinspection PyTypeChecker
-                cost: Value = loss_map[loss_fn](y_true, y_pred).collapse_to_scalar() / len(batch_idx)
+                cost: Value = loss_map[loss_fn](y_true, y_pred, len(batch_idx))
 
                 # backpropagation
                 self.zero_grad()
@@ -105,4 +149,5 @@ class MLP:
                 for p in self.parameters():
                     p.data -= self.lr * p.grad
 
-                print(f"EPOCH {k}: Batch {i}(size={len(batch_idx)}): {loss_fn} = {cost.data.item()}")
+                if verbose:
+                    print(f"EPOCH {k}: Batch {i}(size={len(batch_idx)}): {loss_fn} = {cost.data.item()}")

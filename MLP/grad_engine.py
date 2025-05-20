@@ -43,6 +43,19 @@ class Value:
 
         return gradient
 
+    def __getitem__(self, idx):
+        out = Value(self.data[idx], (self, ), _op="slice")
+
+        def _backward():
+            grad      = np.zeros_like(self.data)
+            grad[idx] = out.grad
+
+            self.grad += grad
+
+        out._backward = _backward
+
+        return out
+
     def __add__(self, other):
         """
         -> Value  + 2(int/float)
@@ -203,6 +216,29 @@ class Value:
 
         out._backward = _backward
 
+        return out
+
+    def softmax(self):
+        logits = self.data
+        logits -= np.max(logits, axis=1, keepdims=True)
+
+        z = np.exp(logits)
+        z = z / np.sum(z, axis=1, keepdims=True)
+
+        out = Value(z, (self, ), _op="softmax")
+
+        def _backward():
+            grad_out = out.grad              # dL/dp
+            p = out.data                     # the probabilities, shape (N, K)
+
+            # For each sample i: dL/dz_i = J_i @ grad_out_i
+            # Vectorized: let s = sum_j (grad_out * p) across classes j
+            s = np.sum(grad_out * p, axis=1, keepdims=True)   # shape (N, 1)
+
+            # Then dL/dz = p * (grad_out - s)
+            self.grad += p * (grad_out - s)
+
+        out._backward = _backward
         return out
 
     def relu(self):

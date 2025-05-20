@@ -60,7 +60,7 @@ model = MLP(
 )
 
 # Train
-model.fit(x_train, y_train, loss_fn="binary_cross_entropy")
+model.fit(x_train, y_train, loss_fn="binary_cross_entropy", batch_size=len(x_train.ravel()))
 
 # Evaluate
 y_preds = [int(model(xi).data.item() > 0.5) for xi in x_test]
