@@ -8,6 +8,8 @@ class Value:
 
         if not isinstance(data, np.ndarray):
             data = np.array(data, dtype=float)
+        else:
+            data = data.astype(float, copy=False)
 
         if data.ndim == 0:
             data = data.reshape(1, 1)
